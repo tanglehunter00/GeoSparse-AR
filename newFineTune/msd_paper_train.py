@@ -1,5 +1,5 @@
 """
-Task03 等论文对齐 MSD 微调：在调用 downstream/segmentation/main 前注入 data_utils。
+Task03 等论文对齐 MSD 微调：在调用 newFineTune/segmentation/main 前注入 paper_data_utils。
 """
 from __future__ import annotations
 
@@ -9,7 +9,8 @@ import sys
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_SEG_REL = Path("downstream") / "segmentation"
+_GASP_SEG_REL = Path("newFineTune") / "segmentation"
+_DOWNSTREAM_SEG_REL = Path("downstream") / "segmentation"
 
 # slug → 是否使用 paper_data_utils（Task03 肝+肿瘤合并为器官）
 PAPER_DATA_UTILS_SLUGS = frozenset({"task03"})
@@ -30,7 +31,7 @@ def run_training_with_paper_data(
     run_test_after_train: bool = False,
     test_json_list: str = "",
 ) -> None:
-    """与 scripts.msd_arssl_seg_train.run_training_main 相同，但 patch get_loader。"""
+    """GASP newFineTune 入口 + paper_data_utils（Task03 肝+肿瘤合并）。"""
     from scripts.msd_arssl_seg_train import (
         resolve_msd_json_list,
         summarize_msd_task,
@@ -44,7 +45,8 @@ def run_training_with_paper_data(
 
     msd_task_dir = msd_task_dir.resolve()
     repo_root = repo_root.resolve()
-    seg_dir = repo_root / _SEG_REL
+    seg_dir = repo_root / _GASP_SEG_REL
+    downstream_seg_dir = repo_root / _DOWNSTREAM_SEG_REL
     if not (seg_dir / "main.py").is_file():
         raise SystemExit(f"未找到 {seg_dir / 'main.py'}")
 
@@ -82,6 +84,8 @@ def run_training_with_paper_data(
         json_list,
         "--workers",
         str(workers),
+        "--network",
+        "base_vit_gasp",
     ]
     if pretrain_wrapped is not None:
         argv_list += ["--pretrain_path", str(pretrain_wrapped)]
@@ -103,19 +107,21 @@ def run_training_with_paper_data(
     os.chdir(str(seg_dir))
     if str(seg_dir) not in sys.path:
         sys.path.insert(0, str(seg_dir))
+    if str(downstream_seg_dir) not in sys.path:
+        sys.path.insert(0, str(downstream_seg_dir))
     if str(repo_root) not in sys.path:
         sys.path.insert(0, str(repo_root))
 
-    # 注入论文对齐 data loader（Task03 肝+肿瘤合并）
     import utils.data_utils as du  # noqa: WPS433
 
     from newFineTune.segmentation import paper_data_utils as pdu  # noqa: WPS433
 
     du.get_loader = pdu.get_loader
     du.get_eval_split_dataloader = pdu.get_eval_split_dataloader
-    print("[newFineTune] 已启用 paper_data_utils（Task03: cancer→liver 器官分割）")
+    print("[GASP+paper] 已启用 paper_data_utils（Task03: cancer→liver 器官分割）")
 
-    spec = importlib.util.spec_from_file_location("seg_ssl_main_paper", seg_dir / "main.py")
+    print("[GASP+paper] 调用 newFineTune/segmentation:", " ".join(argv_list[1:]))
+    spec = importlib.util.spec_from_file_location("gasp_seg_main_paper", seg_dir / "main.py")
     if spec is None or spec.loader is None:
         raise SystemExit("无法加载 main.py")
     mod = importlib.util.module_from_spec(spec)
@@ -126,4 +132,4 @@ def run_training_with_paper_data(
         sys.argv = old_argv
         os.chdir(old_cwd)
 
-    print("完成（paper data utils）。日志与权重在 save_base / task_name 下。")
+    print("完成（GASP + paper data utils）。日志与权重在 save_base / task_name 下。")

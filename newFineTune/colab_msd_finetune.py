@@ -1,7 +1,8 @@
 """
-Colab MSD 分割微调入口（独立任务、均从同一 0.pth 冷启动）。
+Colab MSD 分割微调入口（独立任务、均从同一 GASP 0.pth 冷启动）。
 
-不修改 downstream/；复用 scripts/msd_arssl_seg_train.py 的 run_training_main。
+使用 newFineTune/segmentation（GASP 匹配下游）+ scripts/msd_gasp_seg_train.py。
+Task03 额外注入 paper_data_utils（cancer 合并为 liver 器官类）。
 """
 from __future__ import annotations
 
@@ -14,7 +15,7 @@ _REPO_ROOT = _NEW_FT_ROOT.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.msd_arssl_seg_train import run_training_main  # noqa: E402
+from scripts.msd_gasp_seg_train import run_gasp_training_main  # noqa: E402
 from newFineTune.msd_paper_train import (  # noqa: E402
     PAPER_DATA_UTILS_SLUGS,
     run_training_with_paper_data,
@@ -45,10 +46,10 @@ def run_one_task(
     extra_main_args: list[str] | None = None,
 ) -> Path:
     """
-    从 pretrain_ckpt（如 rawCheckPoint/0.pth）冷启动微调单个 MSD 任务。
+    从 pretrain_ckpt（GASP full pretrain，须含 geo_prior_gen）冷启动微调单个 MSD 任务。
 
     输出目录::
-        {output_root}/{task_slug}/{TaskXX_Name}/base_vit_.../log.txt, model.pt, ...
+        {output_root}/{task_slug}/{TaskXX_Name}/base_vit_gasp_.../log.txt, model.pt, ...
 
     各任务互不影响；勿对其它 task 使用 --resume。
     """
@@ -77,6 +78,7 @@ def run_one_task(
     print(f"save_base      : {save_base}")
     print(f"epochs         : {epochs}")
     print(f"val_every      : {val_every}")
+    print("downstream     : GASP newFineTune/segmentation (base_vit_gasp)")
     if task_slug in PAPER_DATA_UTILS_SLUGS:
         print("data mode      : paper（Task03 label2 cancer 合并入 liver 器官类）")
     print("=" * 72)
@@ -96,12 +98,7 @@ def run_one_task(
     if task_slug in PAPER_DATA_UTILS_SLUGS:
         run_training_with_paper_data(**train_kw)
     else:
-        run_training_main(
-            demo_quick=False,
-            run_test_after_train=False,
-            test_json_list="",
-            **train_kw,
-        )
+        run_gasp_training_main(**train_kw)
 
     return save_base / msd_task_name
 
@@ -109,7 +106,7 @@ def run_one_task(
 if __name__ == "__main__":
     import argparse
 
-    p = argparse.ArgumentParser(description="Colab 单任务 MSD finetune（从 0.pth 冷启动）")
+    p = argparse.ArgumentParser(description="Colab 单任务 MSD finetune（GASP 0.pth 冷启动）")
     p.add_argument("--task-slug", required=True, choices=list(MSD_FINETUNE_TASKS))
     p.add_argument("--repo-root", type=Path, default=_REPO_ROOT)
     p.add_argument(
