@@ -15,6 +15,10 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from scripts.msd_arssl_seg_train import run_training_main  # noqa: E402
+from newFineTune.msd_paper_train import (  # noqa: E402
+    PAPER_DATA_UTILS_SLUGS,
+    run_training_with_paper_data,
+)
 
 # slug（输出目录名）→ MSD 任务文件夹名（dataset/unzip 下）
 MSD_FINETUNE_TASKS: dict[str, str] = {
@@ -73,14 +77,15 @@ def run_one_task(
     print(f"save_base      : {save_base}")
     print(f"epochs         : {epochs}")
     print(f"val_every      : {val_every}")
+    if task_slug in PAPER_DATA_UTILS_SLUGS:
+        print("data mode      : paper（Task03 label2 cancer 合并入 liver 器官类）")
     print("=" * 72)
 
-    run_training_main(
+    train_kw = dict(
         repo_root=repo_root,
         msd_task_dir=msd_task_dir,
         save_base=save_base,
         workers=workers,
-        demo_quick=False,
         skip_summary=skip_dataset_summary,
         extra_main_args=extra_main_args or [],
         pretrain_ckpt=pretrain_ckpt,
@@ -88,6 +93,15 @@ def run_one_task(
         epochs=epochs,
         val_every=val_every,
     )
+    if task_slug in PAPER_DATA_UTILS_SLUGS:
+        run_training_with_paper_data(**train_kw)
+    else:
+        run_training_main(
+            demo_quick=False,
+            run_test_after_train=False,
+            test_json_list="",
+            **train_kw,
+        )
 
     return save_base / msd_task_name
 
