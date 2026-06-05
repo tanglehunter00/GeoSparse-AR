@@ -3,11 +3,26 @@ import os
 import pdb
 import torch
 import numpy as np
+from pathlib import PurePath
 
 from typing import IO, TYPE_CHECKING, Any, Callable, Dict, Hashable, List, Mapping, Optional, Sequence, Tuple, Union
 from monai import data, transforms
 from monai.data import load_decathlon_datalist, load_decathlon_properties
 from monai.config import DtypeLike, KeysCollection
+
+
+def _msd_task_key_from_sample_path(name: str) -> str:
+    """从样本路径推断 MSD 任务目录名（如 Task06_Lung）。原逻辑用 name.split('/')[-3]，在 Windows 反斜杠路径下会越界。"""
+    parts = PurePath(name).parts
+    for seg in reversed(parts):
+        # Task01_BrainTumour、Task06_Lung、LA_Seg 等
+        if seg.startswith("Task") and "_" in seg:
+            return seg
+        if seg == "LA_Seg":
+            return seg
+    if len(parts) >= 3:
+        return parts[-3]
+    return parts[-1] if parts else ""
 
 
 class ScaleIntensityRanged_select(transforms.ScaleIntensityRanged):
@@ -33,9 +48,12 @@ class ScaleIntensityRanged_select(transforms.ScaleIntensityRanged):
     def __call__(self, data):
         d = dict(data)
         name = data['name']
-        key = name.split('/')[-3]
+        key = _msd_task_key_from_sample_path(str(name))
 
-        if key in ['Task03_Liver']:
+        if key in ['Task01_BrainTumour']:
+            # MSD Task01 为多序列 MRI（非 HU），使用较宽线性窗；仍可被命令行 --a_min / --a_max 覆盖外层默认
+            self.scaler = transforms.ScaleIntensityRange(0, 2000, self.b_min, self.b_max, self.clip)
+        elif key in ['Task03_Liver']:
             self.scaler = transforms.ScaleIntensityRange(-21, 189, self.b_min, self.b_max, self.clip)
         elif key in ['Task06_Lung']:
             self.scaler = transforms.ScaleIntensityRange(-1000, 1000, self.b_min, self.b_max, self.clip)
@@ -98,6 +116,14 @@ class Sampler(torch.utils.data.Sampler):
 
     def set_epoch(self, epoch):
         self.epoch = epoch
+
+
+def _dataloader_parallel_kwargs(workers: int) -> dict:
+    """降低 3D 全卷 + gzip 解压时的并行预取峰值，缓解 DataLoader worker MemoryError。"""
+    kw: dict = {"persistent_workers": False}
+    if workers and workers > 0:
+        kw["prefetch_factor"] = 1
+    return kw
 
 
 def get_loader(args, logger=None):
@@ -209,7 +235,7 @@ def get_loader(args, logger=None):
             num_workers=args.workers,
             sampler=test_sampler,
             pin_memory=False,
-            persistent_workers=True,
+            **_dataloader_parallel_kwargs(args.workers),
         )
         loader = test_loader
     else:
@@ -221,6 +247,12 @@ def get_loader(args, logger=None):
         datalist = datalist[:int(len(datalist)*data_ratio)]
         if args.rank == 0:
             logger.info("number of train subjects: {}, ratio: {}".format(len(datalist), data_ratio))
+            if not args.use_normal_dataset:
+                logger.info(
+                    "使用 CacheDataset（cache_rate=%s）。若 LoadImaged / gzip 报 MemoryError，请加 "
+                    "--use_normal_dataset 和/或 --workers 0（见 data_utils._dataloader_parallel_kwargs）。"
+                    % (args.cache_rate,)
+                )
         if args.use_normal_dataset:
             train_ds = data.Dataset(data=datalist, transform=train_transform)
         else:
@@ -234,7 +266,8 @@ def get_loader(args, logger=None):
             shuffle=(train_sampler is None),
             num_workers=args.workers,
             sampler=train_sampler,
-            pin_memory= True,
+            pin_memory=True,
+            **_dataloader_parallel_kwargs(args.workers),
         )
 
         val_files = load_decathlon_datalist(datalist_json, True, "validation", base_dir=data_dir)
@@ -243,8 +276,83 @@ def get_loader(args, logger=None):
         val_ds = data.Dataset(data=val_files, transform=val_transform)
         val_sampler = Sampler(val_ds, shuffle=False) if args.distributed else None
         val_loader = data.DataLoader(
-            val_ds, batch_size=1, shuffle=False, num_workers=args.workers, sampler=val_sampler, pin_memory=False
+            val_ds,
+            batch_size=1,
+            shuffle=False,
+            num_workers=args.workers,
+            sampler=val_sampler,
+            pin_memory=False,
+            **_dataloader_parallel_kwargs(args.workers),
         )
         loader = [train_loader, val_loader]
 
     return loader, properties
+
+
+def get_eval_split_dataloader(
+    args,
+    logger,
+    *,
+    split: str = "test",
+    json_relative: Optional[str] = None,
+):
+    """从 Decathlon JSON 装载某划分（默认 test），预处理与 validation 一致；不可用则返回 None。"""
+    if json_relative is None or not str(json_relative).strip():
+        json_relative = args.json_list
+    datalist_json = os.path.join(args.data_dir, json_relative)
+
+    val_like = transforms.Compose(
+        [
+            transforms.LoadImaged(keys=["image", "label"]),
+            transforms.EnsureChannelFirstd(keys=["image", "label"]),
+            transforms.Orientationd(keys=["image", "label"], axcodes="RAS"),
+            transforms.Spacingd(
+                keys=["image", "label"], pixdim=(args.space_x, args.space_y, args.space_z), mode=("bilinear", "nearest")
+            ),
+            ScaleIntensityRanged_select(
+                keys=["image"], a_min=args.a_min, a_max=args.a_max, b_min=args.b_min, b_max=args.b_max, clip=True
+            ),
+            transforms.CropForegroundd(keys=["image", "label"], source_key="image"),
+            transforms.ToTensord(keys=["image", "label"]),
+        ]
+    )
+
+    if logger is None or args.rank != 0:
+        return None
+
+    if not os.path.isfile(datalist_json):
+        logger.info(f"[{split}] skip: JSON not found: {datalist_json}")
+        return None
+    try:
+        files = load_decathlon_datalist(datalist_json, True, split, base_dir=args.data_dir)
+    except KeyError:
+        logger.info(
+            f"[{split}] skip: no `{split}` list in JSON (add labeled fold or use --test_json_list)."
+        )
+        return None
+    except Exception as e:
+        logger.info(f"[{split}] skip: load_decathlon failed: {e}")
+        return None
+    if not files:
+        logger.info(f"[{split}] skip: `{split}` list empty")
+        return None
+    if any("label" not in it for it in files):
+        logger.info(f"[{split}] skip: need `label` in each row to compute Dice")
+        return None
+
+    for item in files:
+        item.update({"name": item["image"]})
+
+    ds = data.Dataset(data=files, transform=val_like)
+    val_sampler = Sampler(ds, shuffle=False) if args.distributed else None
+    dl = data.DataLoader(
+        ds,
+        batch_size=1,
+        shuffle=False,
+        num_workers=args.workers,
+        sampler=val_sampler,
+        pin_memory=False,
+        **_dataloader_parallel_kwargs(args.workers),
+    )
+    logger.info(f"[{split}] size={len(ds)} json={datalist_json}")
+    return dl

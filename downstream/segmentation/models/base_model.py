@@ -263,9 +263,9 @@ class BaseModel(nn.Module):
         pos_embed = pos_embed.to(image_embeds.device)
         inputs_embeds = image_embeds + pos_embed[None, ...]
 
-        attention_mask = torch.ones(batch_size, 1, t * h * w + 1, t * h * w + 1, dtype=torch.bool).to(image_embeds.device)
+        # 不传 4D bool 全 True：新版 transformers + CUDA 会触发 _unmask_unattended，要求 float mask。
         attention_mask = _prepare_4d_causal_attention_mask_for_sdpa(
-            attention_mask,
+            None,
             (batch_size, seq_length),
             inputs_embeds,
             0,

@@ -158,7 +158,7 @@ def val_epoch(model, loader, epoch, acc_func, args, model_inferer=None, post_lab
                 maybe_print(
                     logger,
                     "Val {}/{} {}/{}, ".format(epoch, args.max_epochs, idx, len(loader))
-                  + "acc={:.4f}".format(avg_acc) + f"({each_acc})" + ", "
+                  + "mean_dice(DiceMetric)={:.4f}".format(avg_acc) + f"({each_acc})" + ", "
                   + "time {:.2f}s".format(time.time() - start_time),
                 )
             start_time = time.time()
@@ -191,7 +191,8 @@ def run_training(
     post_label=None,
     post_pred=None,
     dataset_props=None,
-    logger = None,
+    logger=None,
+    resume_best_tracking=None,
 ):
     writer = None
     if args.logdir is not None and args.rank == 0:
@@ -205,8 +206,10 @@ def run_training(
     scaler = None
     if args.amp:
         scaler = GradScaler()
-    val_acc_max = 0.0
-    val_best_epoch = 0
+    if resume_best_tracking is not None:
+        val_acc_max, val_best_epoch = resume_best_tracking[0], int(resume_best_tracking[1])
+    else:
+        val_acc_max, val_best_epoch = 0.0, 0
     for epoch in range(start_epoch, args.max_epochs):
         if args.distributed:
             train_loader.sampler.set_epoch(epoch)
@@ -252,11 +255,12 @@ def run_training(
                 maybe_print(
                     logger,
                     "Final validation  {}/{}, ".format(epoch, args.max_epochs - 1)
-                  + "acc={:.4f}".format(val_avg_acc) + f"({each_acc})" + ", "
+                  + "mean_dice(no_bg)={:.4f}".format(val_avg_acc) + f", per_class Dice: ({each_acc})" + ", "
                   + "time {:.2f}s".format(time.time() - epoch_time),
                 )
                 if writer is not None:
-                    writer.add_scalar("val_acc", val_avg_acc, epoch)
+                    writer.add_scalar("val_mean_dice", val_avg_acc, epoch)
+                    writer.add_scalar("val_acc", val_avg_acc, epoch)  # 旧名兼容，同上值
                 if val_avg_acc > val_acc_max:
                     maybe_print(logger, "new best ({:.6f} --> {:.6f}). ".format(val_acc_max, val_avg_acc))
                     val_acc_max = val_avg_acc

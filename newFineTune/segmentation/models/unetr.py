@@ -8,11 +8,6 @@ from monai.utils import deprecated_arg, ensure_tuple_rep
 
 
 class UNETR(nn.Module):
-    """
-    UNETR based on: "Hatamizadeh et al.,
-    UNETR: Transformers for 3D Medical Image Segmentation <https://arxiv.org/abs/2103.10504>"
-    """
-
     @deprecated_arg(
         name="pos_embed", since="1.2", removed="1.4", new_name="proj_type", msg_suffix="please use `proj_type` instead."
     )
@@ -37,45 +32,9 @@ class UNETR(nn.Module):
         qkv_bias: bool = False,
         save_attn: bool = False,
     ) -> None:
-        """
-        Args:
-            in_channels: dimension of input channels.
-            out_channels: dimension of output channels.
-            img_size: dimension of input image.
-            feature_size: dimension of network feature size. Defaults to 16.
-            hidden_size: dimension of hidden layer. Defaults to 768.
-            mlp_dim: dimension of feedforward layer. Defaults to 3072.
-            num_heads: number of attention heads. Defaults to 12.
-            proj_type: patch embedding layer type. Defaults to "conv".
-            norm_name: feature normalization type and arguments. Defaults to "instance".
-            conv_block: if convolutional block is used. Defaults to True.
-            res_block: if residual block is used. Defaults to True.
-            dropout_rate: fraction of the input units to drop. Defaults to 0.0.
-            spatial_dims: number of spatial dims. Defaults to 3.
-            qkv_bias: apply the bias term for the qkv linear layer in self attention block. Defaults to False.
-            save_attn: to make accessible the attention in self attention block. Defaults to False.
-
-        .. deprecated:: 1.4
-            ``pos_embed`` is deprecated in favor of ``proj_type``.
-
-        Examples::
-
-            # for single channel input 4-channel output with image size of (96,96,96), feature size of 32 and batch norm
-            >>> net = UNETR(in_channels=1, out_channels=4, img_size=(96,96,96), feature_size=32, norm_name='batch')
-
-             # for single channel input 4-channel output with image size of (96,96), feature size of 32 and batch norm
-            >>> net = UNETR(in_channels=1, out_channels=4, img_size=96, feature_size=32, norm_name='batch', spatial_dims=2)
-
-            # for 4-channel input 3-channel output with image size of (128,128,128), conv position embedding and instance norm
-            >>> net = UNETR(in_channels=4, out_channels=3, img_size=(128,128,128), proj_type='conv', norm_name='instance')
-
-        """
-
         super().__init__()
-
         if not (0 <= dropout_rate <= 1):
             raise ValueError("dropout_rate should be between 0 and 1.")
-
         if hidden_size % num_heads != 0:
             raise ValueError("hidden_size should be divisible by num_heads.")
 
@@ -85,7 +44,6 @@ class UNETR(nn.Module):
         self.feat_size = tuple(img_d // p_d for img_d, p_d in zip(img_size, self.patch_size))
         self.hidden_size = hidden_size
         self.classification = False
-        # MONAI >=1.4：ViT 使用 proj_type / pos_embed_type，不再接收 pos_embed
         self.vit = ViT(
             in_channels=in_channels,
             img_size=img_size,
@@ -102,7 +60,6 @@ class UNETR(nn.Module):
             qkv_bias=qkv_bias,
             save_attn=save_attn,
         )
-
         self.encoder1 = UnetrBasicBlock(
             spatial_dims=spatial_dims,
             in_channels=in_channels,
@@ -195,7 +152,6 @@ class UNETR(nn.Module):
         return x
 
     def forward(self, x_in):
-
         x, hidden_states_out = self.vit(x_in)
         enc1 = self.encoder1(x_in)
         x2 = hidden_states_out[3]
@@ -209,5 +165,4 @@ class UNETR(nn.Module):
         dec2 = self.decoder4(dec3, enc3)
         dec1 = self.decoder3(dec2, enc2)
         out = self.decoder2(dec1, enc1)
-
         return self.out(out)

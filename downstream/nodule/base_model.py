@@ -266,9 +266,11 @@ class BaseModel(nn.Module):
         pos_embed = pos_embed.to(image_embeds.device)
         inputs_embeds = image_embeds + pos_embed[None, ...]
 
-        attention_mask = torch.ones(batch_size, 1, t * h * w + 1, t * h * w + 1, dtype=torch.bool).to(image_embeds.device)
+        # 不要传入全 True 的 4D bool mask：transformers≥4.4× 在 CUDA 上会走
+        # AttentionMaskConverter._unmask_unattended，要求 float mask 并抛出 ValueError。
+        # 本 demo 无 padding，传 None 由 SDPA / HF 生成 float 因果掩码或使用 is_causal。
         attention_mask = _prepare_4d_causal_attention_mask_for_sdpa(
-            attention_mask,
+            None,
             (batch_size, seq_length),
             inputs_embeds,
             0,

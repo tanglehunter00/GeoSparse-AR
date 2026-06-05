@@ -34,9 +34,24 @@ def build_model(args, roi_size):
     print('model_size', model_size)
 
     if args.pretrain_path is not None:
-        model_dict = torch.load(args.pretrain_path)["state_dict"]
-        pretrained_state = {k.split('model.')[-1]: v for k, v in model_dict.items() if k.startswith('model')}
-        encoder.load_state_dict(pretrained_state, strict=True)
+        ck = torch.load(args.pretrain_path, map_location="cpu")
+        if isinstance(ck, dict) and "state_dict" in ck:
+            model_dict = ck["state_dict"]
+        else:
+            model_dict = ck if isinstance(ck, dict) else {}
+        pretrained_state = {}
+        for k, v in model_dict.items():
+            nk = k
+            if nk.startswith("module."):
+                nk = nk[len("module.") :]
+            if nk.startswith("_orig_mod."):
+                nk = nk[len("_orig_mod.") :]
+            if nk.startswith("model."):
+                pretrained_state[nk[len("model.") :]] = v
+        incomp = encoder.load_state_dict(pretrained_state, strict=False)
+        nm = incomp.missing_keys if hasattr(incomp, "missing_keys") else incomp[0]
+        nu = incomp.unexpected_keys if hasattr(incomp, "unexpected_keys") else incomp[1]
+        print("Loaded ViT pretrained keys:", len(pretrained_state), "missing:", len(nm), "unexpected:", len(nu))
 
     model.vit = encoder
     return model

@@ -1,0 +1,72 @@
+# Finetune 数据目录结构（Google Drive / Colab）
+# 来源: colab_drive_dataset_check 粗扫 rev.2 | 2026-06-04
+# 机器可读版: finetune_drive_dataset_structure.json
+
+ROOT (Colab): /content/drive/MyDrive/dataset
+
+================================================================================
+顶层 (2)
+================================================================================
+
+dataset/
+├── unzip/          # 已解压，7 个数据集，finetune 直接用
+└── zip/            # tar 归档备份（6 个）
+
+================================================================================
+zip/ — tar 归档（均已对应 unzip/ 内解压副本）
+================================================================================
+
+  Task03_Liver-007.tar          26.9GB  → unzip/Task03_Liver
+  Task06_Lung-001.tar            8.5GB  → unzip/Task06_Lung
+  Task07_Pancreas-006.tar       11.4GB  → unzip/Task07_Pancreas
+  Task08_HepaticVessel-002.tar   8.7GB  → unzip/Task08_HepaticVessel
+  Task09_Spleen.tar              1.5GB  → unzip/Task09_Spleen
+  Task10_Colon-004.tar           5.8GB  → unzip/Task10_Colon
+
+================================================================================
+unzip/ — 7 个子数据集
+================================================================================
+
+--- MSD Decathlon ×6（finetune_ready）---
+布局: dataset.json | imagesTr/ | imagesTs/ | labelsTr/
+imagesTs 无 label
+
+Task              imagesTr  imagesTs  labelsTr  命名前缀
+────────────────────────────────────────────────────────
+Task03_Liver           131       70       131  liver_*.nii.gz
+Task06_Lung             63       32        63  lung_*.nii.gz      ← demo 常用
+Task07_Pancreas        281      139       281  pancreas_*.nii.gz
+Task08_HepaticVessel   303      140       303  hepaticvessel_*.nii.gz
+Task09_Spleen           41       20        41  spleen_*.nii.gz
+Task10_Colon           126       64       126  colon_*.nii.gz
+
+--- LIDC-IDRI（DICOM，需预处理）---
+
+LIDCIDRI/
+  metadata.csv (537.7KB)
+  LIDC-IDRI/
+    1010 case dirs: LIDC-IDRI-0001 … LIDC-IDRI-1010 (+1000 未逐例展开)
+    层级: <case>/<study_date>/<series_uid>/*.dcm + *.xml
+    粗扫样例: 0001–0010 各含 2 study，每 study 1 series，切片数 2–278 不等
+
+================================================================================
+本仓库脚本路径（Colab）
+================================================================================
+
+MSD 分割:
+  --MSD_data_base  /content/drive/MyDrive/dataset/unzip
+  --task_name      Task06_Lung   # 或 Task03/07/08/09/10
+  → data_dir = .../unzip/<task_name>
+
+validation: dataset_withVal.json 或 autogen（msd_arssl_seg_train.py）
+
+LIDC: 非 Decathlon JSON；DICOM 需先转 nii/npy
+
+================================================================================
+quick_paths（复制用）
+================================================================================
+
+/content/drive/MyDrive/dataset/unzip/Task06_Lung
+/content/drive/MyDrive/dataset/unzip/Task09_Spleen
+/content/drive/MyDrive/dataset/unzip/Task10_Colon
+/content/drive/MyDrive/dataset/unzip/LIDCIDRI

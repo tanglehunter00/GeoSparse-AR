@@ -1,0 +1,203 @@
+{
+  "meta": {
+    "description": "Google Drive finetune 数据目录结构（Colab 粗扫结果整理）",
+    "source": "colab_drive_dataset_check.ipynb 输出（完整 unzip 顶层 7 数据集）",
+    "scanned_at": "2026-06-04",
+    "scan_revision": 2,
+    "dataset_root_colab": "/content/drive/MyDrive/dataset",
+    "scan_policy": "unzip/ 下 7 个子数据集全部列出；LIDC case 层展示前 10 例；MSD 各 split 统计文件数",
+    "repo_usage": {
+      "msd_segmentation": "MSD_data_base=<parent> + task_name=<TaskXX_Name>，data_dir = join(MSD_data_base, task_name)",
+      "msd_example_colab": {
+        "MSD_data_base": "/content/drive/MyDrive/dataset/unzip",
+        "task_name": "Task06_Lung",
+        "data_dir": "/content/drive/MyDrive/dataset/unzip/Task06_Lung"
+      }
+    }
+  },
+  "top_level": {
+    "count": 2,
+    "entries": [
+      {
+        "name": "unzip",
+        "type": "directory",
+        "role": "已解压、可直接用于 finetune",
+        "subdir_count": 7,
+        "file_count": 0,
+        "children": [
+          "LIDCIDRI",
+          "Task03_Liver",
+          "Task06_Lung",
+          "Task07_Pancreas",
+          "Task08_HepaticVessel",
+          "Task09_Spleen",
+          "Task10_Colon"
+        ]
+      },
+      {
+        "name": "zip",
+        "type": "directory",
+        "role": "MSD tar 归档备份",
+        "subdir_count": 0,
+        "file_count": 6
+      }
+    ]
+  },
+  "archives": {
+    "root": "zip/",
+    "path_colab": "/content/drive/MyDrive/dataset/zip",
+    "files": [
+      { "name": "Task03_Liver-007.tar", "size": "26.9GB", "extracted_to": "unzip/Task03_Liver" },
+      { "name": "Task06_Lung-001.tar", "size": "8.5GB", "extracted_to": "unzip/Task06_Lung" },
+      { "name": "Task07_Pancreas-006.tar", "size": "11.4GB", "extracted_to": "unzip/Task07_Pancreas" },
+      { "name": "Task08_HepaticVessel-002.tar", "size": "8.7GB", "extracted_to": "unzip/Task08_HepaticVessel" },
+      { "name": "Task09_Spleen.tar", "size": "1.5GB", "extracted_to": "unzip/Task09_Spleen" },
+      { "name": "Task10_Colon-004.tar", "size": "5.8GB", "extracted_to": "unzip/Task10_Colon" }
+    ]
+  },
+  "datasets": [
+    {
+      "id": "LIDCIDRI",
+      "path_colab": "/content/drive/MyDrive/dataset/unzip/LIDCIDRI",
+      "format": "LIDC-IDRI DICOM + XML",
+      "modality": "CT chest (DICOM)",
+      "downstream_use": "肺结节 / LIDC / PCRLv2 等；非 MSD Decathlon 布局",
+      "finetune_ready": false,
+      "note": "需 DICOM→NIfTI 或 npy 预处理后再接入训练流水线",
+      "layout": {
+        "metadata.csv": "537.7KB",
+        "LIDC-IDRI/": {
+          "patient_case_dirs": 1010,
+          "case_id_range_sampled": "LIDC-IDRI-0001 … LIDC-IDRI-0010（粗扫展开前 10；+1000 未展开）",
+          "hierarchy": "LIDC-IDRI/<case_id>/<study_date_dir>/<series_uid>/",
+          "leaf_file_types": ["*.dcm", "*.xml"],
+          "sample_cases": [
+            { "case": "LIDC-IDRI-0001", "studies": 2, "series_files_example": 134 },
+            { "case": "LIDC-IDRI-0002", "studies": 2, "series_files": [2, 262] },
+            { "case": "LIDC-IDRI-0003", "studies": 2, "series_files": [6, 141] },
+            { "case": "LIDC-IDRI-0004", "studies": 2, "series_files": [2, 242] },
+            { "case": "LIDC-IDRI-0005", "studies": 2, "series_files": [3, 134] },
+            { "case": "LIDC-IDRI-0006", "studies": 2, "series_files": [3, 134] },
+            { "case": "LIDC-IDRI-0007", "studies": 2, "series_files": [5, 146] },
+            { "case": "LIDC-IDRI-0008", "studies": 2, "series_files": [134, 3] },
+            { "case": "LIDC-IDRI-0009", "studies": 2, "series_files": [257, 2] },
+            { "case": "LIDC-IDRI-0010", "studies": 2, "series_files": [2, 278] }
+          ]
+        }
+      }
+    },
+    {
+      "id": "Task03_Liver",
+      "path_colab": "/content/drive/MyDrive/dataset/unzip/Task03_Liver",
+      "format": "MSD Decathlon",
+      "modality": "CT",
+      "task_name_for_scripts": "Task03_Liver",
+      "finetune_ready": true,
+      "layout": {
+        "dataset.json": "12.2KB",
+        "imagesTr": { "count": 131, "pattern": "liver_*.nii.gz" },
+        "imagesTs": { "count": 70, "pattern": "liver_*.nii.gz", "has_labels": false },
+        "labelsTr": { "count": 131, "pattern": "liver_*.nii.gz" }
+      }
+    },
+    {
+      "id": "Task06_Lung",
+      "path_colab": "/content/drive/MyDrive/dataset/unzip/Task06_Lung",
+      "format": "MSD Decathlon",
+      "modality": "CT",
+      "task_name_for_scripts": "Task06_Lung",
+      "finetune_ready": true,
+      "repo_notes": "msd_segmentation_arssl_demo 默认任务；需 dataset_withVal.json 或 autogen",
+      "layout": {
+        "dataset.json": "5.9KB",
+        "imagesTr": { "count": 63, "pattern": "lung_*.nii.gz" },
+        "imagesTs": { "count": 32, "pattern": "lung_*.nii.gz", "has_labels": false },
+        "labelsTr": { "count": 63, "pattern": "lung_*.nii.gz" }
+      }
+    },
+    {
+      "id": "Task07_Pancreas",
+      "path_colab": "/content/drive/MyDrive/dataset/unzip/Task07_Pancreas",
+      "format": "MSD Decathlon",
+      "modality": "CT",
+      "task_name_for_scripts": "Task07_Pancreas",
+      "finetune_ready": true,
+      "layout": {
+        "dataset.json": "27.9KB",
+        "imagesTr": { "count": 281, "pattern": "pancreas_*.nii.gz" },
+        "imagesTs": { "count": 139, "pattern": "pancreas_*.nii.gz", "has_labels": false },
+        "labelsTr": { "count": 281, "pattern": "pancreas_*.nii.gz" }
+      }
+    },
+    {
+      "id": "Task08_HepaticVessel",
+      "path_colab": "/content/drive/MyDrive/dataset/unzip/Task08_HepaticVessel",
+      "format": "MSD Decathlon",
+      "modality": "CT",
+      "task_name_for_scripts": "Task08_HepaticVessel",
+      "finetune_ready": true,
+      "layout": {
+        "dataset.json": "33.4KB",
+        "imagesTr": { "count": 303, "pattern": "hepaticvessel_*.nii.gz" },
+        "imagesTs": { "count": 140, "pattern": "hepaticvessel_*.nii.gz", "has_labels": false },
+        "labelsTr": { "count": 303, "pattern": "hepaticvessel_*.nii.gz" }
+      }
+    },
+    {
+      "id": "Task09_Spleen",
+      "path_colab": "/content/drive/MyDrive/dataset/unzip/Task09_Spleen",
+      "format": "MSD Decathlon",
+      "modality": "CT",
+      "task_name_for_scripts": "Task09_Spleen",
+      "finetune_ready": true,
+      "layout": {
+        "dataset.json": "4.0KB",
+        "imagesTr": { "count": 41, "pattern": "spleen_*.nii.gz" },
+        "imagesTs": { "count": 20, "pattern": "spleen_*.nii.gz", "has_labels": false },
+        "labelsTr": { "count": 41, "pattern": "spleen_*.nii.gz" }
+      }
+    },
+    {
+      "id": "Task10_Colon",
+      "path_colab": "/content/drive/MyDrive/dataset/unzip/Task10_Colon",
+      "format": "MSD Decathlon",
+      "modality": "CT",
+      "task_name_for_scripts": "Task10_Colon",
+      "finetune_ready": true,
+      "layout": {
+        "dataset.json": "11.8KB",
+        "imagesTr": { "count": 126, "pattern": "colon_*.nii.gz" },
+        "imagesTs": { "count": 64, "pattern": "colon_*.nii.gz", "has_labels": false },
+        "labelsTr": { "count": 126, "pattern": "colon_*.nii.gz" }
+      }
+    }
+  ],
+  "msd_summary_table": [
+    { "task": "Task03_Liver", "imagesTr": 131, "imagesTs": 70, "labelsTr": 131 },
+    { "task": "Task06_Lung", "imagesTr": 63, "imagesTs": 32, "labelsTr": 63 },
+    { "task": "Task07_Pancreas", "imagesTr": 281, "imagesTs": 139, "labelsTr": 281 },
+    { "task": "Task08_HepaticVessel", "imagesTr": 303, "imagesTs": 140, "labelsTr": 303 },
+    { "task": "Task09_Spleen", "imagesTr": 41, "imagesTs": 20, "labelsTr": 41 },
+    { "task": "Task10_Colon", "imagesTr": 126, "imagesTs": 64, "labelsTr": 126 }
+  ],
+  "msd_decathlon_template": {
+    "required_for_training": ["dataset.json", "imagesTr/", "labelsTr/"],
+    "optional": ["imagesTs/"],
+    "imagesTs_has_labels": false,
+    "validation_split": "需 dataset_withVal.json 或从 training 末尾划 validation（见 scripts/msd_arssl_seg_train.py）"
+  },
+  "quick_paths": {
+    "colab": {
+      "root": "/content/drive/MyDrive/dataset",
+      "unzip": "/content/drive/MyDrive/dataset/unzip",
+      "zip": "/content/drive/MyDrive/dataset/zip",
+      "Task03_Liver": "/content/drive/MyDrive/dataset/unzip/Task03_Liver",
+      "Task06_Lung": "/content/drive/MyDrive/dataset/unzip/Task06_Lung",
+      "Task07_Pancreas": "/content/drive/MyDrive/dataset/unzip/Task07_Pancreas",
+      "Task08_HepaticVessel": "/content/drive/MyDrive/dataset/unzip/Task08_HepaticVessel",
+      "Task09_Spleen": "/content/drive/MyDrive/dataset/unzip/Task09_Spleen",
+      "Task10_Colon": "/content/drive/MyDrive/dataset/unzip/Task10_Colon",
+      "LIDCIDRI": "/content/drive/MyDrive/dataset/unzip/LIDCIDRI"
+    }
+  }
+}
